@@ -1,5 +1,4 @@
 import {
-  TeltonikaPacket,
   AVLRecord,
   GPSData,
   IOElement,
@@ -390,7 +389,7 @@ export class TeltonikaParser {
       offset += 2
 
       for (let i = 0; i < nxCount; i++) {
-        const id = buffer.readUInt16BE(offset)
+        // Skip ID (2 bytes)
         offset += 2
         const length = buffer.readUInt16BE(offset)
         offset += 2
