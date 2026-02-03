@@ -1,7 +1,4 @@
 import { pgTable, text, integer, timestamp, pgEnum } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
-import { devices } from './devices.js'
-import { routeAssignments } from './routes.js'
 
 export const vehicleTypeEnum = pgEnum('vehicle_type', ['BUS', 'MINIBUS', 'TRAM', 'SERVICE_VEHICLE'])
 
@@ -16,14 +13,6 @@ export const vehicles = pgTable('vehicles', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
-
-export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
-  device: one(devices, {
-    fields: [vehicles.id],
-    references: [devices.vehicleId],
-  }),
-  routeAssignments: many(routeAssignments),
-}))
 
 export type Vehicle = typeof vehicles.$inferSelect
 export type NewVehicle = typeof vehicles.$inferInsert

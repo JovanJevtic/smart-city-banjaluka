@@ -1,6 +1,4 @@
 import { pgTable, text, boolean, timestamp, doublePrecision, jsonb, pgEnum, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
-import { devices } from './devices.js'
 
 export const alertTypeEnum = pgEnum('alert_type', [
   'GEOFENCE_ENTER',
@@ -20,7 +18,7 @@ export const alertSeverityEnum = pgEnum('alert_severity', ['INFO', 'WARNING', 'C
 
 export const alerts = pgTable('alerts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  deviceId: text('device_id').notNull().references(() => devices.id),
+  deviceId: text('device_id').notNull(),
   type: alertTypeEnum('type').notNull(),
   severity: alertSeverityEnum('severity').notNull(),
   message: text('message').notNull(),
@@ -35,10 +33,6 @@ export const alerts = pgTable('alerts', {
   index('alerts_device_created_idx').on(table.deviceId, table.createdAt),
   index('alerts_type_ack_idx').on(table.type, table.acknowledged),
 ])
-
-export const alertsRelations = relations(alerts, ({ one }) => ({
-  device: one(devices, { fields: [alerts.deviceId], references: [devices.id] }),
-}))
 
 // Types
 export type Alert = typeof alerts.$inferSelect

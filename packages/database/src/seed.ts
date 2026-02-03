@@ -1,4 +1,4 @@
-import { db, devices, vehicles, routes, stops, routeStops, geofences, users } from './index.js'
+import { db, devices, vehicles, routes, stops, routeStops, geofences, users } from './index'
 
 async function main() {
   console.log('Seeding database...')

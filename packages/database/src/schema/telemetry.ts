@@ -1,11 +1,9 @@
 import { pgTable, text, integer, boolean, timestamp, doublePrecision, bigserial, jsonb, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
-import { devices } from './devices.js'
 
 // Main telemetry records
 export const telemetryRecords = pgTable('telemetry_records', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId: text('device_id').notNull().references(() => devices.id),
+  deviceId: text('device_id').notNull(),
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
 
   // GPS
@@ -40,7 +38,7 @@ export const telemetryRecords = pgTable('telemetry_records', {
 // CAN bus data
 export const canDataRecords = pgTable('can_data_records', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId: text('device_id').notNull().references(() => devices.id),
+  deviceId: text('device_id').notNull(),
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
 
   // Engine
@@ -93,15 +91,6 @@ export const stopArrivals = pgTable('stop_arrivals', {
   index('stop_arrivals_stop_actual_idx').on(table.stopId, table.actualTime),
   index('stop_arrivals_imei_actual_idx').on(table.deviceImei, table.actualTime),
 ])
-
-// Relations
-export const telemetryRecordsRelations = relations(telemetryRecords, ({ one }) => ({
-  device: one(devices, { fields: [telemetryRecords.deviceId], references: [devices.id] }),
-}))
-
-export const canDataRecordsRelations = relations(canDataRecords, ({ one }) => ({
-  device: one(devices, { fields: [canDataRecords.deviceId], references: [devices.id] }),
-}))
 
 // Types
 export type TelemetryRecord = typeof telemetryRecords.$inferSelect

@@ -1,6 +1,4 @@
 import { pgTable, text, integer, boolean, timestamp, doublePrecision, pgEnum, index, unique } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
-import { vehicles } from './vehicles.js'
 
 export const directionEnum = pgEnum('direction', ['OUTBOUND', 'INBOUND'])
 export const shiftEnum = pgEnum('shift', ['MORNING', 'AFTERNOON', 'ALL_DAY'])
@@ -36,8 +34,8 @@ export const stops = pgTable('stops', {
 // Route-Stop junction
 export const routeStops = pgTable('route_stops', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
-  stopId: text('stop_id').notNull().references(() => stops.id, { onDelete: 'cascade' }),
+  routeId: text('route_id').notNull(),
+  stopId: text('stop_id').notNull(),
   sequence: integer('sequence').notNull(),
   direction: directionEnum('direction').default('OUTBOUND').notNull(),
   avgTimeFromStart: integer('avg_time_from_start'),
@@ -49,8 +47,8 @@ export const routeStops = pgTable('route_stops', {
 // Route assignments
 export const routeAssignments = pgTable('route_assignments', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  vehicleId: text('vehicle_id').notNull().references(() => vehicles.id),
-  routeId: text('route_id').notNull().references(() => routes.id),
+  vehicleId: text('vehicle_id').notNull(),
+  routeId: text('route_id').notNull(),
   startDate: timestamp('start_date', { withTimezone: true }).notNull(),
   endDate: timestamp('end_date', { withTimezone: true }),
   shift: shiftEnum('shift').default('ALL_DAY').notNull(),
@@ -64,7 +62,7 @@ export const routeAssignments = pgTable('route_assignments', {
 // Schedules
 export const schedules = pgTable('schedules', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  routeId: text('route_id').notNull().references(() => routes.id),
+  routeId: text('route_id').notNull(),
   daysOfWeek: integer('days_of_week').array().notNull(),
   departureTime: text('departure_time').notNull(),
   direction: directionEnum('direction').notNull(),
@@ -73,31 +71,6 @@ export const schedules = pgTable('schedules', {
 }, (table) => [
   index('schedules_route_active_idx').on(table.routeId, table.isActive),
 ])
-
-// Relations
-export const routesRelations = relations(routes, ({ many }) => ({
-  stops: many(routeStops),
-  assignments: many(routeAssignments),
-  schedules: many(schedules),
-}))
-
-export const stopsRelations = relations(stops, ({ many }) => ({
-  routes: many(routeStops),
-}))
-
-export const routeStopsRelations = relations(routeStops, ({ one }) => ({
-  route: one(routes, { fields: [routeStops.routeId], references: [routes.id] }),
-  stop: one(stops, { fields: [routeStops.stopId], references: [stops.id] }),
-}))
-
-export const routeAssignmentsRelations = relations(routeAssignments, ({ one }) => ({
-  vehicle: one(vehicles, { fields: [routeAssignments.vehicleId], references: [vehicles.id] }),
-  route: one(routes, { fields: [routeAssignments.routeId], references: [routes.id] }),
-}))
-
-export const schedulesRelations = relations(schedules, ({ one }) => ({
-  route: one(routes, { fields: [schedules.routeId], references: [routes.id] }),
-}))
 
 // Types
 export type Route = typeof routes.$inferSelect
