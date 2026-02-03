@@ -1,10 +1,7 @@
 import net, { Socket, Server } from 'node:net'
 import { Redis } from 'ioredis'
 import { Queue } from 'bullmq'
-import {
-  TeltonikaParser,
-  ParsedTelemetry,
-} from '@smart-city/teltonika-parser'
+import { ParsedTelemetry } from '@smart-city/teltonika-parser'
 import {
   REDIS_KEYS,
   REDIS_CHANNELS,

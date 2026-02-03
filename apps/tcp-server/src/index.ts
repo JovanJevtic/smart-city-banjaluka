@@ -1,6 +1,6 @@
 import { TcpServer } from './server.js'
 import { createLogger } from './logger.js'
-import { Config, loadConfig } from './config.js'
+import { loadConfig } from './config.js'
 
 const logger = createLogger('main')
 
