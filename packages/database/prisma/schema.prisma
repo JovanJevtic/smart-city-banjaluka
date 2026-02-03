@@ -1,0 +1,402 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ============================================
+// DEVICES
+// ============================================
+
+model Device {
+  id       String  @id @default(cuid())
+  imei     String  @unique
+  name     String?
+  model    String? // FMC125, FMB920, etc.
+  firmware String?
+
+  vehicleId String?  @unique
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  isOnline Boolean   @default(false)
+  lastSeen DateTime?
+
+  telemetryRecords TelemetryRecord[]
+  canRecords       CanDataRecord[]
+  alerts           Alert[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([imei])
+  @@index([isOnline])
+}
+
+// ============================================
+// VEHICLES
+// ============================================
+
+model Vehicle {
+  id             String      @id @default(cuid())
+  registrationNo String      @unique
+  type           VehicleType
+
+  make     String?
+  model    String?
+  year     Int?
+  capacity Int?
+
+  device           Device?
+  routeAssignments RouteAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum VehicleType {
+  BUS
+  MINIBUS
+  TRAM
+  SERVICE_VEHICLE
+}
+
+// ============================================
+// ROUTES & STOPS
+// ============================================
+
+model Route {
+  id          String  @id @default(cuid())
+  number      String
+  name        String
+  description String?
+  color       String? // HEX color for map
+
+  isActive Boolean @default(true)
+
+  stops       RouteStop[]
+  assignments RouteAssignment[]
+  schedules   Schedule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Stop {
+  id   String  @id @default(cuid())
+  name String
+  code String? @unique
+
+  latitude  Float
+  longitude Float
+
+  shelter Boolean @default(false)
+  bench   Boolean @default(false)
+  display Boolean @default(false)
+
+  routes   RouteStop[]
+  arrivals StopArrival[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([latitude, longitude])
+}
+
+model RouteStop {
+  id String @id @default(cuid())
+
+  routeId String
+  route   Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  stopId String
+  stop   Stop   @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  sequence  Int
+  direction Direction @default(OUTBOUND)
+
+  avgTimeFromStart Int?
+
+  @@unique([routeId, stopId, direction])
+  @@index([routeId, sequence])
+}
+
+enum Direction {
+  OUTBOUND
+  INBOUND
+}
+
+// ============================================
+// SCHEDULES & ASSIGNMENTS
+// ============================================
+
+model RouteAssignment {
+  id String @id @default(cuid())
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  routeId String
+  route   Route  @relation(fields: [routeId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime?
+  shift     Shift    @default(ALL_DAY)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId, isActive])
+  @@index([routeId, isActive])
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  ALL_DAY
+}
+
+model Schedule {
+  id String @id @default(cuid())
+
+  routeId String
+  route   Route  @relation(fields: [routeId], references: [id])
+
+  daysOfWeek    Int[]
+  departureTime String
+  direction     Direction
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([routeId, isActive])
+}
+
+// ============================================
+// TELEMETRY DATA
+// ============================================
+
+model TelemetryRecord {
+  id BigInt @id @default(autoincrement())
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id])
+
+  timestamp DateTime
+
+  // GPS
+  latitude   Float
+  longitude  Float
+  altitude   Int?
+  speed      Int?
+  heading    Int?
+  satellites Int?
+  hdop       Float?
+
+  // Status
+  ignition Boolean?
+  movement Boolean?
+
+  // Power
+  externalVoltage Float?
+  batteryVoltage  Float?
+
+  // Calculated
+  distanceFromLast Float?
+
+  // Raw data
+  rawData Json?
+
+  receivedAt DateTime @default(now())
+
+  @@index([deviceId, timestamp])
+  @@index([timestamp])
+}
+
+// ============================================
+// CAN BUS DATA
+// ============================================
+
+model CanDataRecord {
+  id BigInt @id @default(autoincrement())
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id])
+
+  timestamp DateTime
+
+  // Engine
+  engineRpm         Int?
+  engineHours       Float?
+  engineCoolantTemp Int?
+  engineLoad        Float?
+
+  // Fuel
+  fuelLevel Float?
+  fuelUsed  Float?
+  fuelRate  Float?
+
+  // Speed & distance
+  vehicleSpeed Int?
+  odometer     Int?
+  tripOdometer Float?
+
+  // Controls
+  throttlePosition Float?
+  brakeActive      Boolean?
+  cruiseControl    Boolean?
+
+  // Doors
+  door1Open Boolean?
+  door2Open Boolean?
+  door3Open Boolean?
+
+  // Diagnostics
+  dtcCodes    String[]
+  checkEngine Boolean?
+
+  receivedAt DateTime @default(now())
+
+  @@index([deviceId, timestamp])
+  @@index([timestamp])
+}
+
+// ============================================
+// STOP ARRIVALS
+// ============================================
+
+model StopArrival {
+  id BigInt @id @default(autoincrement())
+
+  stopId String
+  stop   Stop   @relation(fields: [stopId], references: [id])
+
+  deviceImei String
+
+  scheduledTime DateTime?
+  predictedTime DateTime?
+  actualTime    DateTime?
+
+  delaySeconds Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([stopId, actualTime])
+  @@index([deviceImei, actualTime])
+}
+
+// ============================================
+// ALERTS
+// ============================================
+
+model Alert {
+  id String @id @default(cuid())
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id])
+
+  type     AlertType
+  severity AlertSeverity
+
+  message String
+  data    Json?
+
+  latitude  Float?
+  longitude Float?
+
+  acknowledged   Boolean   @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+  @@index([type, acknowledged])
+}
+
+enum AlertType {
+  GEOFENCE_ENTER
+  GEOFENCE_EXIT
+  OVERSPEED
+  HARSH_BRAKING
+  HARSH_ACCELERATION
+  EXCESSIVE_IDLE
+  LOW_FUEL
+  ENGINE_ERROR
+  DEVICE_OFFLINE
+  SOS_BUTTON
+  ROUTE_DEVIATION
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ============================================
+// USERS
+// ============================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+
+  role UserRole @default(VIEWER)
+
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  ANALYST
+  VIEWER
+}
+
+// ============================================
+// GEOFENCES
+// ============================================
+
+model Geofence {
+  id   String       @id @default(cuid())
+  name String
+  type GeofenceType
+
+  // Circle
+  centerLat Float?
+  centerLng Float?
+  radius    Int?
+
+  // Polygon
+  polygon Json?
+
+  // Rules
+  alertOnEnter Boolean @default(true)
+  alertOnExit  Boolean @default(true)
+  speedLimit   Int?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum GeofenceType {
+  CIRCLE
+  POLYGON
+}
