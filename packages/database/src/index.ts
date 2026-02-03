@@ -1,16 +1,25 @@
-import { PrismaClient } from '@prisma/client'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import pg from 'pg'
+import * as schema from './schema/index.js'
 
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined
-}
+const { Pool } = pg
 
-export const prisma = globalThis.prisma ?? new PrismaClient()
+// Create connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+})
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma
-}
+// Create Drizzle instance with schema
+export const db = drizzle(pool, { schema })
 
-// Re-export everything from Prisma client
-export * from '@prisma/client'
-export { PrismaClient }
+// Export pool for raw queries (batch inserts)
+export { pool }
+
+// Export all schema
+export * from './schema/index.js'
+
+// Export Drizzle operators
+export { eq, and, or, gt, gte, lt, lte, ne, isNull, isNotNull, inArray, notInArray, sql, desc, asc } from 'drizzle-orm'

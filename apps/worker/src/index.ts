@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq'
 import { Redis } from 'ioredis'
-import { prisma } from '@smart-city/database'
+import { pool } from '@smart-city/database'
 import { QUEUES } from '@smart-city/shared'
 import { createLogger } from './logger.js'
 import { processTelemetryJob, TelemetryJobData } from './processors/telemetry.processor.js'
@@ -22,7 +22,8 @@ async function main(): Promise<void> {
   })
 
   // Test database connection
-  await prisma.$connect()
+  const client = await pool.connect()
+  client.release()
   logger.info('Database connected')
 
   // Test Redis connection
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
     await telemetryWorker.close()
     await alertWorker.close()
     await redisConnection.quit()
-    await prisma.$disconnect()
+    await pool.end()
 
     logger.info('Workers stopped')
     process.exit(0)

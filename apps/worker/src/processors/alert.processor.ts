@@ -1,5 +1,5 @@
 import { Job } from 'bullmq'
-import { prisma, AlertType, AlertSeverity } from '@smart-city/database'
+import { db, eq, and, gte, devices, alerts, geofences } from '@smart-city/database'
 import { createLogger } from '../logger.js'
 
 const logger = createLogger('alert-processor')
@@ -46,27 +46,26 @@ async function checkOverspeed(
 
   if (data.speed && data.speed > SPEED_LIMIT) {
     // Check if there's a recent overspeed alert to avoid duplicates
-    const recentAlert = await prisma.alert.findFirst({
-      where: {
-        deviceId,
-        type: 'OVERSPEED',
-        createdAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
-        },
-      },
-    })
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+
+    const [recentAlert] = await db.select()
+      .from(alerts)
+      .where(and(
+        eq(alerts.deviceId, deviceId),
+        eq(alerts.type, 'OVERSPEED'),
+        gte(alerts.createdAt, fiveMinutesAgo)
+      ))
+      .limit(1)
 
     if (!recentAlert) {
-      await prisma.alert.create({
-        data: {
-          deviceId,
-          type: 'OVERSPEED' as AlertType,
-          severity: data.speed > SPEED_LIMIT + 20 ? 'CRITICAL' : 'WARNING' as AlertSeverity,
-          message: `Vehicle exceeded speed limit: ${data.speed} km/h (limit: ${SPEED_LIMIT} km/h)`,
-          data: { speed: data.speed, limit: SPEED_LIMIT },
-          latitude: data.latitude,
-          longitude: data.longitude,
-        },
+      await db.insert(alerts).values({
+        deviceId,
+        type: 'OVERSPEED',
+        severity: data.speed > SPEED_LIMIT + 20 ? 'CRITICAL' : 'WARNING',
+        message: `Vehicle exceeded speed limit: ${data.speed} km/h (limit: ${SPEED_LIMIT} km/h)`,
+        data: { speed: data.speed, limit: SPEED_LIMIT },
+        latitude: data.latitude,
+        longitude: data.longitude,
       })
 
       logger.info(
@@ -85,43 +84,39 @@ async function checkGeofence(
   if (!data.latitude || !data.longitude) return
 
   // Get all active geofences
-  const geofences = await prisma.geofence.findMany({
-    where: { isActive: true },
-  })
+  const activeGeofences = await db.select()
+    .from(geofences)
+    .where(eq(geofences.isActive, true))
 
-  for (const geofence of geofences) {
+  for (const geofence of activeGeofences) {
     const isInside = isPointInGeofence(
       data.latitude,
       data.longitude,
       geofence
     )
 
-    // TODO: Track previous state to detect enter/exit transitions
-    // For now, we just check if inside and alert on entry
     if (isInside && geofence.alertOnEnter) {
       // Check for recent alert
-      const recentAlert = await prisma.alert.findFirst({
-        where: {
-          deviceId,
-          type: 'GEOFENCE_ENTER',
-          data: { path: ['geofenceId'], equals: geofence.id },
-          createdAt: {
-            gte: new Date(Date.now() - 10 * 60 * 1000), // Last 10 minutes
-          },
-        },
-      })
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+
+      const [recentAlert] = await db.select()
+        .from(alerts)
+        .where(and(
+          eq(alerts.deviceId, deviceId),
+          eq(alerts.type, 'GEOFENCE_ENTER'),
+          gte(alerts.createdAt, tenMinutesAgo)
+        ))
+        .limit(1)
 
       if (!recentAlert) {
-        await prisma.alert.create({
-          data: {
-            deviceId,
-            type: 'GEOFENCE_ENTER' as AlertType,
-            severity: 'INFO' as AlertSeverity,
-            message: `Vehicle entered geofence: ${geofence.name}`,
-            data: { geofenceId: geofence.id, geofenceName: geofence.name },
-            latitude: data.latitude,
-            longitude: data.longitude,
-          },
+        await db.insert(alerts).values({
+          deviceId,
+          type: 'GEOFENCE_ENTER',
+          severity: 'INFO',
+          message: `Vehicle entered geofence: ${geofence.name}`,
+          data: { geofenceId: geofence.id, geofenceName: geofence.name },
+          latitude: data.latitude,
+          longitude: data.longitude,
         })
 
         logger.info(
@@ -135,35 +130,33 @@ async function checkGeofence(
 
 async function handleDeviceOffline(deviceId: string, imei: string): Promise<void> {
   // Check for recent offline alert
-  const recentAlert = await prisma.alert.findFirst({
-    where: {
-      deviceId,
-      type: 'DEVICE_OFFLINE',
-      createdAt: {
-        gte: new Date(Date.now() - 30 * 60 * 1000), // Last 30 minutes
-      },
-    },
-  })
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+
+  const [recentAlert] = await db.select()
+    .from(alerts)
+    .where(and(
+      eq(alerts.deviceId, deviceId),
+      eq(alerts.type, 'DEVICE_OFFLINE'),
+      gte(alerts.createdAt, thirtyMinutesAgo)
+    ))
+    .limit(1)
 
   if (!recentAlert) {
-    await prisma.alert.create({
-      data: {
-        deviceId,
-        type: 'DEVICE_OFFLINE' as AlertType,
-        severity: 'WARNING' as AlertSeverity,
-        message: `Device went offline: ${imei}`,
-        data: { imei },
-      },
+    await db.insert(alerts).values({
+      deviceId,
+      type: 'DEVICE_OFFLINE',
+      severity: 'WARNING',
+      message: `Device went offline: ${imei}`,
+      data: { imei },
     })
 
     logger.info({ imei }, 'Device offline alert created')
   }
 
   // Update device status
-  await prisma.device.update({
-    where: { id: deviceId },
-    data: { isOnline: false },
-  })
+  await db.update(devices)
+    .set({ isOnline: false, updatedAt: new Date() })
+    .where(eq(devices.id, deviceId))
 }
 
 function isPointInGeofence(

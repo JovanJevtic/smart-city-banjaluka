@@ -1,5 +1,5 @@
 import { Job } from 'bullmq'
-import { prisma } from '@smart-city/database'
+import { db, eq, desc, devices, telemetryRecords, canDataRecords } from '@smart-city/database'
 import { createLogger } from '../logger.js'
 
 const logger = createLogger('telemetry-processor')
@@ -48,36 +48,30 @@ export async function processTelemetryJob(job: Job<TelemetryJobData>): Promise<v
   logger.debug({ imei, timestamp: telemetry.timestamp }, 'Processing telemetry')
 
   // Find or create device
-  let device = await prisma.device.findUnique({
-    where: { imei },
-  })
+  let [device] = await db.select().from(devices).where(eq(devices.imei, imei)).limit(1)
 
   if (!device) {
-    device = await prisma.device.create({
-      data: {
-        imei,
-        name: `Device ${imei}`,
-        isOnline: true,
-        lastSeen: new Date(),
-      },
-    })
+    const [newDevice] = await db.insert(devices).values({
+      imei,
+      name: `Device ${imei}`,
+      isOnline: true,
+      lastSeen: new Date(),
+    }).returning()
+    device = newDevice
     logger.info({ imei, deviceId: device.id }, 'Created new device')
   } else {
     // Update device status
-    await prisma.device.update({
-      where: { id: device.id },
-      data: {
-        isOnline: true,
-        lastSeen: new Date(),
-      },
-    })
+    await db.update(devices)
+      .set({ isOnline: true, lastSeen: new Date(), updatedAt: new Date() })
+      .where(eq(devices.id, device.id))
   }
 
   // Get previous telemetry for distance calculation
-  const previousRecord = await prisma.telemetryRecord.findFirst({
-    where: { deviceId: device.id },
-    orderBy: { timestamp: 'desc' },
-  })
+  const [previousRecord] = await db.select()
+    .from(telemetryRecords)
+    .where(eq(telemetryRecords.deviceId, device.id))
+    .orderBy(desc(telemetryRecords.timestamp))
+    .limit(1)
 
   // Calculate distance from last point
   let distanceFromLast: number | undefined
@@ -91,48 +85,44 @@ export async function processTelemetryJob(job: Job<TelemetryJobData>): Promise<v
   }
 
   // Save telemetry record
-  await prisma.telemetryRecord.create({
-    data: {
-      deviceId: device.id,
-      timestamp: new Date(telemetry.timestamp),
-      latitude: telemetry.gps.latitude,
-      longitude: telemetry.gps.longitude,
-      altitude: telemetry.gps.altitude,
-      speed: telemetry.gps.speed,
-      heading: telemetry.gps.angle,
-      satellites: telemetry.gps.satellites,
-      hdop: telemetry.gnssHdop,
-      ignition: telemetry.ignition,
-      movement: telemetry.movement,
-      externalVoltage: telemetry.externalVoltage,
-      batteryVoltage: telemetry.batteryVoltage,
-      distanceFromLast,
-      rawData: telemetry.rawIO as object,
-      receivedAt: new Date(receivedAt),
-    },
+  await db.insert(telemetryRecords).values({
+    deviceId: device.id,
+    timestamp: new Date(telemetry.timestamp),
+    latitude: telemetry.gps.latitude,
+    longitude: telemetry.gps.longitude,
+    altitude: telemetry.gps.altitude,
+    speed: telemetry.gps.speed,
+    heading: telemetry.gps.angle,
+    satellites: telemetry.gps.satellites,
+    hdop: telemetry.gnssHdop,
+    ignition: telemetry.ignition,
+    movement: telemetry.movement,
+    externalVoltage: telemetry.externalVoltage,
+    batteryVoltage: telemetry.batteryVoltage,
+    distanceFromLast,
+    rawData: telemetry.rawIO,
+    receivedAt: new Date(receivedAt),
   })
 
   // Save CAN data if present
   if (telemetry.can && Object.keys(telemetry.can).length > 0) {
-    await prisma.canDataRecord.create({
-      data: {
-        deviceId: device.id,
-        timestamp: new Date(telemetry.timestamp),
-        engineRpm: telemetry.can.engineRpm,
-        engineHours: telemetry.can.engineHours,
-        engineCoolantTemp: telemetry.can.coolantTemp,
-        fuelLevel: telemetry.can.fuelLevel,
-        fuelUsed: telemetry.can.fuelUsed,
-        fuelRate: telemetry.can.fuelRate,
-        vehicleSpeed: telemetry.can.vehicleSpeed,
-        odometer: telemetry.can.odometer,
-        throttlePosition: telemetry.can.throttlePosition,
-        brakeActive: telemetry.can.brakeActive,
-        door1Open: telemetry.can.door1Open,
-        door2Open: telemetry.can.door2Open,
-        door3Open: telemetry.can.door3Open,
-        receivedAt: new Date(receivedAt),
-      },
+    await db.insert(canDataRecords).values({
+      deviceId: device.id,
+      timestamp: new Date(telemetry.timestamp),
+      engineRpm: telemetry.can.engineRpm,
+      engineHours: telemetry.can.engineHours,
+      engineCoolantTemp: telemetry.can.coolantTemp,
+      fuelLevel: telemetry.can.fuelLevel,
+      fuelUsed: telemetry.can.fuelUsed,
+      fuelRate: telemetry.can.fuelRate,
+      vehicleSpeed: telemetry.can.vehicleSpeed,
+      odometer: telemetry.can.odometer,
+      throttlePosition: telemetry.can.throttlePosition,
+      brakeActive: telemetry.can.brakeActive,
+      door1Open: telemetry.can.door1Open,
+      door2Open: telemetry.can.door2Open,
+      door3Open: telemetry.can.door3Open,
+      receivedAt: new Date(receivedAt),
     })
   }
 
