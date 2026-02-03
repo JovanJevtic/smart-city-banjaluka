@@ -1,5 +1,4 @@
 import { pgTable, text, boolean, timestamp, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
 
 export const devices = pgTable('devices', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

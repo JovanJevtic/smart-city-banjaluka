@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
-import * as schema from './schema/index'
+import * as schema from './schema/index.js'
 
 const { Pool } = pg
 
@@ -19,7 +19,7 @@ export const db = drizzle(pool, { schema })
 export { pool }
 
 // Export all schema
-export * from './schema/index'
+export * from './schema/index.js'
 
 // Export Drizzle operators
 export { eq, and, or, gt, gte, lt, lte, ne, isNull, isNotNull, inArray, notInArray, sql, desc, asc } from 'drizzle-orm'
