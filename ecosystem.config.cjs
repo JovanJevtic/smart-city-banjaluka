@@ -29,6 +29,7 @@ module.exports = {
       cwd: "/opt/smart-city/apps/dashboard",
       script: "node_modules/.bin/next",
       args: "start -p 3100",
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
