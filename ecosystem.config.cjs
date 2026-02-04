@@ -24,5 +24,18 @@ module.exports = {
         NODE_ENV: "production",
       },
     },
+    {
+      name: "dashboard",
+      cwd: "/opt/smart-city/apps/dashboard",
+      script: "node_modules/.bin/next",
+      args: "start -p 3100",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      env: {
+        NODE_ENV: "production",
+        DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/smartcity",
+      },
+    },
   ],
 };
