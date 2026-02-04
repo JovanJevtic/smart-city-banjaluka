@@ -27,7 +27,7 @@ module.exports = {
     {
       name: "dashboard",
       cwd: "/opt/smart-city/apps/dashboard",
-      script: "node_modules/.bin/next",
+      script: "node_modules/next/dist/bin/next",
       args: "start -p 3100",
       exec_mode: "fork",
       instances: 1,
