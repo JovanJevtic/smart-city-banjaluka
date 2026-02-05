@@ -130,7 +130,7 @@ export default function MapDashboard() {
   }, [selectedDevice, fetchTelemetry])
 
   const positions: [number, number][] = points
-    .filter(p => p.latitude !== 0 && p.longitude !== 0)
+    .filter(p => p.latitude !== 0 && p.longitude !== 0 && (p.speed ?? 0) > 0)
     .map(p => [p.latitude, p.longitude])
 
   const latestPoint = points.length > 0 ? points[points.length - 1] : null
