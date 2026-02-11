@@ -1,8 +1,15 @@
-import { Job } from 'bullmq'
+import { Job, Queue } from 'bullmq'
 import { db, eq, desc, devices, telemetryRecords, canDataRecords } from '@smart-city/database'
 import { createLogger } from '../logger.js'
+import type { AlertJobData } from './alert.processor.js'
 
 const logger = createLogger('telemetry-processor')
+
+let alertQueue: Queue<AlertJobData> | null = null
+
+export function setAlertQueue(queue: Queue<AlertJobData>) {
+  alertQueue = queue
+}
 
 export interface TelemetryJobData {
   imei: string
@@ -127,6 +134,34 @@ export async function processTelemetryJob(job: Job<TelemetryJobData>): Promise<v
   }
 
   logger.debug({ imei, deviceId: device.id }, 'Telemetry saved')
+
+  // Enqueue alert checks
+  if (alertQueue) {
+    try {
+      const alertData = {
+        deviceId: device.id,
+        imei,
+        data: {
+          latitude: telemetry.gps.latitude,
+          longitude: telemetry.gps.longitude,
+          speed: telemetry.gps.speed,
+          timestamp: telemetry.timestamp,
+        },
+      }
+
+      await alertQueue.add('check_overspeed', {
+        type: 'check_overspeed' as const,
+        ...alertData,
+      }, { removeOnComplete: 100, removeOnFail: 50 })
+
+      await alertQueue.add('check_geofence', {
+        type: 'check_geofence' as const,
+        ...alertData,
+      }, { removeOnComplete: 100, removeOnFail: 50 })
+    } catch (err) {
+      logger.warn({ err, imei }, 'Failed to enqueue alert jobs')
+    }
+  }
 }
 
 /**

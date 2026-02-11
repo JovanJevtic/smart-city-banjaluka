@@ -1,8 +1,26 @@
 import { Job } from 'bullmq'
+import { Redis } from 'ioredis'
 import { db, eq, and, gte, devices, alerts, geofences } from '@smart-city/database'
+import { REDIS_CHANNELS } from '@smart-city/shared'
 import { createLogger } from '../logger.js'
 
 const logger = createLogger('alert-processor')
+
+let redisPub: Redis | null = null
+
+export function setRedisPublisher(redis: Redis) {
+  redisPub = redis
+}
+
+async function publishAlert(alert: Record<string, unknown>) {
+  if (redisPub) {
+    try {
+      await redisPub.publish(REDIS_CHANNELS.ALERTS, JSON.stringify(alert))
+    } catch (err) {
+      logger.warn({ err }, 'Failed to publish alert to Redis')
+    }
+  }
+}
 
 export interface AlertJobData {
   type: 'check_geofence' | 'check_overspeed' | 'check_idle' | 'device_offline'
@@ -58,15 +76,19 @@ async function checkOverspeed(
       .limit(1)
 
     if (!recentAlert) {
-      await db.insert(alerts).values({
+      const alertValues = {
         deviceId,
-        type: 'OVERSPEED',
-        severity: data.speed > SPEED_LIMIT + 20 ? 'CRITICAL' : 'WARNING',
+        type: 'OVERSPEED' as const,
+        severity: (data.speed > SPEED_LIMIT + 20 ? 'CRITICAL' : 'WARNING') as 'CRITICAL' | 'WARNING',
         message: `Vehicle exceeded speed limit: ${data.speed} km/h (limit: ${SPEED_LIMIT} km/h)`,
         data: { speed: data.speed, limit: SPEED_LIMIT },
         latitude: data.latitude,
         longitude: data.longitude,
-      })
+      }
+
+      const [inserted] = await db.insert(alerts).values(alertValues).returning()
+
+      await publishAlert({ ...inserted, imei })
 
       logger.info(
         { imei, speed: data.speed, limit: SPEED_LIMIT },
@@ -109,15 +131,19 @@ async function checkGeofence(
         .limit(1)
 
       if (!recentAlert) {
-        await db.insert(alerts).values({
+        const alertValues = {
           deviceId,
-          type: 'GEOFENCE_ENTER',
-          severity: 'INFO',
+          type: 'GEOFENCE_ENTER' as const,
+          severity: 'INFO' as const,
           message: `Vehicle entered geofence: ${geofence.name}`,
           data: { geofenceId: geofence.id, geofenceName: geofence.name },
           latitude: data.latitude,
           longitude: data.longitude,
-        })
+        }
+
+        const [inserted] = await db.insert(alerts).values(alertValues).returning()
+
+        await publishAlert({ ...inserted, imei })
 
         logger.info(
           { imei, geofence: geofence.name },
@@ -142,13 +168,17 @@ async function handleDeviceOffline(deviceId: string, imei: string): Promise<void
     .limit(1)
 
   if (!recentAlert) {
-    await db.insert(alerts).values({
+    const alertValues = {
       deviceId,
-      type: 'DEVICE_OFFLINE',
-      severity: 'WARNING',
+      type: 'DEVICE_OFFLINE' as const,
+      severity: 'WARNING' as const,
       message: `Device went offline: ${imei}`,
       data: { imei },
-    })
+    }
+
+    const [inserted] = await db.insert(alerts).values(alertValues).returning()
+
+    await publishAlert({ ...inserted, imei })
 
     logger.info({ imei }, 'Device offline alert created')
   }

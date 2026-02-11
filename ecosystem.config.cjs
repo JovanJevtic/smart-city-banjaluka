@@ -25,6 +25,19 @@ module.exports = {
       },
     },
     {
+      name: "api",
+      cwd: "/opt/smart-city/apps/api",
+      script: "dist/index.js",
+      node_args: "--env-file=/opt/smart-city/.env",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      env: {
+        NODE_ENV: "production",
+        API_PORT: "3000",
+      },
+    },
+    {
       name: "dashboard",
       cwd: "/opt/smart-city/apps/dashboard",
       script: "node_modules/next/dist/bin/next",
