@@ -12,18 +12,19 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@smart-city/shared": "workspace:*",
-    "@smart-city/database": "workspace:*",
-    "fastify": "^5.2.0",
-    "@fastify/websocket": "^11.0.0",
-    "@fastify/jwt": "^9.0.0",
     "@fastify/cors": "^10.0.0",
+    "@fastify/jwt": "^9.0.0",
     "@fastify/rate-limit": "^10.0.0",
-    "fastify-plugin": "^5.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@smart-city/database": "workspace:*",
+    "@smart-city/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
+    "fastify": "^5.2.0",
+    "fastify-plugin": "^5.0.0",
     "ioredis": "^5.4.0",
-    "zod": "^3.24.0",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "protobufjs": "^8.0.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
