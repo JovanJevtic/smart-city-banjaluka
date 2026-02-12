@@ -51,5 +51,19 @@ module.exports = {
         DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/smartcity",
       },
     },
+    {
+      name: "passenger",
+      cwd: "/opt/smart-city/apps/passenger",
+      script: "node_modules/next/dist/bin/next",
+      args: "start -p 3200",
+      exec_mode: "fork",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      env: {
+        NODE_ENV: "production",
+        DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/smartcity",
+      },
+    },
   ],
 };
