@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import L from 'leaflet'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
+import RouteOverlay from './map/RouteOverlay'
+import StopMarkers from './map/StopMarkers'
 
 // Fix Leaflet default marker icons (bundler breaks the default paths)
 const defaultIcon = L.icon({
@@ -41,6 +44,21 @@ interface DeviceInfo {
   lastSeen: string | null
 }
 
+interface RouteOverlayData {
+  id: string
+  number: string
+  name: string
+  color: string | null
+  shapes: { direction: string; geometry: [number, number][] }[]
+}
+
+interface StopData {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+}
+
 const BANJA_LUKA_CENTER: [number, number] = [44.7722, 17.191]
 const TIME_RANGES = [
   { label: '1h', hours: 1 },
@@ -72,6 +90,9 @@ export default function MapDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [showRoutes, setShowRoutes] = useState(false)
+  const [routeOverlayData, setRouteOverlayData] = useState<RouteOverlayData[]>([])
+  const [stopOverlayData, setStopOverlayData] = useState<StopData[]>([])
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchDevices = useCallback(async () => {
@@ -128,6 +149,32 @@ export default function MapDashboard() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [selectedDevice, fetchTelemetry])
+
+  // Fetch route overlay data when toggled on
+  useEffect(() => {
+    if (!showRoutes) return
+    if (routeOverlayData.length > 0) return // already loaded
+
+    const fetchRouteData = async () => {
+      try {
+        const [routesRes, stopsRes] = await Promise.all([
+          fetch('/api/routes?withShapes=true'),
+          fetch('/api/stops?limit=1000'),
+        ])
+        if (routesRes.ok) {
+          const data: RouteOverlayData[] = await routesRes.json()
+          setRouteOverlayData(data)
+        }
+        if (stopsRes.ok) {
+          const data = await stopsRes.json()
+          setStopOverlayData(data.data || [])
+        }
+      } catch (err) {
+        console.error('Failed to fetch route overlay data:', err)
+      }
+    }
+    fetchRouteData()
+  }, [showRoutes, routeOverlayData.length])
 
   const positions: [number, number][] = points
     .filter(p => p.latitude !== 0 && p.longitude !== 0 && (p.speed ?? 0) > 0)
@@ -212,6 +259,34 @@ export default function MapDashboard() {
           {loading ? 'Loading...' : 'Refresh'}
         </button>
 
+        {/* Route overlay toggle */}
+        <button
+          onClick={() => setShowRoutes(!showRoutes)}
+          style={{
+            padding: '4px 12px',
+            borderRadius: '4px',
+            border: 'none',
+            background: showRoutes ? '#e94560' : '#16213e',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          Routes
+        </button>
+
+        {/* Routes page link */}
+        <Link href="/routes" style={{
+          padding: '4px 12px',
+          borderRadius: '4px',
+          background: '#0f3460',
+          color: '#fff',
+          textDecoration: 'none',
+          fontSize: '13px',
+        }}>
+          Route List
+        </Link>
+
         {/* Stats */}
         <span style={{ color: '#aaa', fontSize: '12px' }}>
           {points.length} points
@@ -265,6 +340,16 @@ export default function MapDashboard() {
                 </div>
               </Popup>
             </Marker>
+          )}
+
+          {/* Route overlay */}
+          {showRoutes && routeOverlayData.length > 0 && (
+            <RouteOverlay routes={routeOverlayData} />
+          )}
+
+          {/* Stop markers (visible at zoom 14+) */}
+          {showRoutes && stopOverlayData.length > 0 && (
+            <StopMarkers stops={stopOverlayData} />
           )}
         </MapContainer>
       </div>

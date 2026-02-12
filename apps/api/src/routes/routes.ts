@@ -19,6 +19,11 @@ export default async function routeRoutes(fastify: FastifyInstance) {
     return routeService.getById(id)
   })
 
+  fastify.get('/api/routes/:id/shape', async (request) => {
+    const { id } = idParamSchema.parse(request.params)
+    return routeService.getShape(id)
+  })
+
   fastify.post('/api/routes', async (request, reply) => {
     const body = createRouteSchema.parse(request.body)
     const route = await routeService.create(body)

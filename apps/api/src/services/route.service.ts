@@ -1,4 +1,4 @@
-import { db, eq, routes, routeStops, stops, schedules, sql } from '@smart-city/database'
+import { db, eq, routes, routeStops, routeShapes, stops, schedules, sql } from '@smart-city/database'
 import type { CreateRouteInput, UpdateRouteInput } from '../schemas/route.js'
 
 export class RouteService {
@@ -50,7 +50,25 @@ export class RouteService {
       .where(eq(schedules.routeId, id))
       .orderBy(schedules.departureTime)
 
-    return { ...route, stops: routeStopsList, schedules: routeSchedules }
+    // Get shapes
+    const shapes = await db.select()
+      .from(routeShapes)
+      .where(eq(routeShapes.routeId, id))
+
+    return { ...route, stops: routeStopsList, schedules: routeSchedules, shapes }
+  }
+
+  async getShape(routeId: string) {
+    const [route] = await db.select().from(routes).where(eq(routes.id, routeId)).limit(1)
+    if (!route) {
+      throw { statusCode: 404, message: 'Route not found' }
+    }
+
+    const shapes = await db.select()
+      .from(routeShapes)
+      .where(eq(routeShapes.routeId, routeId))
+
+    return { routeId, routeNumber: route.number, routeName: route.name, color: route.color, shapes }
   }
 
   async create(input: CreateRouteInput) {

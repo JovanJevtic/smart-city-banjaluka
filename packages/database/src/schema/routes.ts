@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, doublePrecision, pgEnum, index, unique } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, boolean, timestamp, doublePrecision, bigint, jsonb, pgEnum, index, unique } from 'drizzle-orm/pg-core'
 
 export const directionEnum = pgEnum('direction', ['OUTBOUND', 'INBOUND'])
 export const shiftEnum = pgEnum('shift', ['MORNING', 'AFTERNOON', 'ALL_DAY'])
@@ -11,6 +11,15 @@ export const routes = pgTable('routes', {
   description: text('description'),
   color: text('color'),
   isActive: boolean('is_active').default(true).notNull(),
+
+  // OSM data
+  osmRelationId: bigint('osm_relation_id', { mode: 'number' }).unique(),
+  operator: text('operator'),
+  intervalMinutes: integer('interval_minutes'),
+  operatingHours: text('operating_hours'),
+  distanceMeters: doublePrecision('distance_meters'),
+  avgDurationMinutes: integer('avg_duration_minutes'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -25,6 +34,12 @@ export const stops = pgTable('stops', {
   shelter: boolean('shelter').default(false).notNull(),
   bench: boolean('bench').default(false).notNull(),
   display: boolean('display').default(false).notNull(),
+
+  // OSM data
+  osmNodeId: bigint('osm_node_id', { mode: 'number' }).unique(),
+  zone: text('zone'),
+  wheelchairAccessible: boolean('wheelchair_accessible').default(false).notNull(),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -39,9 +54,22 @@ export const routeStops = pgTable('route_stops', {
   sequence: integer('sequence').notNull(),
   direction: directionEnum('direction').default('OUTBOUND').notNull(),
   avgTimeFromStart: integer('avg_time_from_start'),
+  distanceFromStart: doublePrecision('distance_from_start'), // meters
 }, (table) => [
   unique('route_stop_direction_unique').on(table.routeId, table.stopId, table.direction),
   index('route_stops_route_seq_idx').on(table.routeId, table.sequence),
+])
+
+// Route shapes — detailed polyline geometry per direction
+export const routeShapes = pgTable('route_shapes', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  routeId: text('route_id').notNull(),
+  direction: directionEnum('direction').notNull(),
+  geometry: jsonb('geometry').notNull(), // [[lng, lat], [lng, lat], ...]
+  distanceMeters: doublePrecision('distance_meters'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('route_shapes_route_direction').on(table.routeId, table.direction),
 ])
 
 // Route assignments
@@ -72,10 +100,25 @@ export const schedules = pgTable('schedules', {
   index('schedules_route_active_idx').on(table.routeId, table.isActive),
 ])
 
+// OSM import log
+export const osmImportLog = pgTable('osm_import_log', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  importType: text('import_type').notNull(), // 'routes', 'stops', 'full'
+  osmTimestamp: text('osm_timestamp'),
+  routesImported: integer('routes_imported').default(0),
+  stopsImported: integer('stops_imported').default(0),
+  routeStopsImported: integer('route_stops_imported').default(0),
+  shapesImported: integer('shapes_imported').default(0),
+  errors: jsonb('errors'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 // Types
 export type Route = typeof routes.$inferSelect
 export type NewRoute = typeof routes.$inferInsert
 export type Stop = typeof stops.$inferSelect
 export type NewStop = typeof stops.$inferInsert
+export type RouteShape = typeof routeShapes.$inferSelect
+export type NewRouteShape = typeof routeShapes.$inferInsert
 export type Direction = 'OUTBOUND' | 'INBOUND'
 export type Shift = 'MORNING' | 'AFTERNOON' | 'ALL_DAY'
