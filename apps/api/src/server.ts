@@ -21,6 +21,7 @@ import alertRoutes from './routes/alerts.js'
 import geofenceRoutes from './routes/geofences.js'
 import analyticsRoutes from './routes/analytics.js'
 import stopRoutes from './routes/stops.js'
+import adherenceRoutes from './routes/adherence.js'
 
 // WebSocket
 import { ConnectionManager } from './websocket/connection-manager.js'
@@ -90,6 +91,7 @@ export async function buildServer(config: Config) {
   await fastify.register(geofenceRoutes)
   await fastify.register(analyticsRoutes)
   await fastify.register(stopRoutes)
+  await fastify.register(adherenceRoutes)
 
   // WebSocket setup
   const connectionManager = new ConnectionManager()

@@ -2,13 +2,23 @@ import { Job, Queue } from 'bullmq'
 import { db, eq, desc, devices, telemetryRecords, canDataRecords } from '@smart-city/database'
 import { createLogger } from '../logger.js'
 import type { AlertJobData } from './alert.processor.js'
+import { matchGpsToRoute } from '../services/route-matcher.js'
+import { calculateProgress } from '../services/progress-calculator.js'
+import { predictETAs } from '../services/eta-predictor.js'
+import { checkAdherence } from '../services/adherence-checker.js'
+import { recordSegmentSpeed } from '../services/speed-learner.js'
 
 const logger = createLogger('telemetry-processor')
 
 let alertQueue: Queue<AlertJobData> | null = null
+let routeMatchingEnabled = false
 
 export function setAlertQueue(queue: Queue<AlertJobData>) {
   alertQueue = queue
+}
+
+export function enableRouteMatching() {
+  routeMatchingEnabled = true
 }
 
 export interface TelemetryJobData {
@@ -160,6 +170,56 @@ export async function processTelemetryJob(job: Job<TelemetryJobData>): Promise<v
       }, { removeOnComplete: 100, removeOnFail: 50 })
     } catch (err) {
       logger.warn({ err, imei }, 'Failed to enqueue alert jobs')
+    }
+  }
+
+  // Route matching pipeline (Phase 8)
+  if (routeMatchingEnabled && telemetry.gps.isValid && telemetry.gps.latitude !== 0) {
+    try {
+      const match = await matchGpsToRoute(
+        telemetry.gps.latitude,
+        telemetry.gps.longitude,
+        telemetry.gps.angle,
+        device.id,
+      )
+
+      if (match) {
+        const progress = calculateProgress(match)
+
+        // Predict ETAs for upcoming stops
+        await predictETAs(
+          device.id, match, progress,
+          telemetry.gps.speed,
+        )
+
+        // Check schedule adherence
+        await checkAdherence(
+          device.id, match, progress,
+          telemetry.gps.latitude, telemetry.gps.longitude,
+        )
+
+        // Learn segment speeds
+        await recordSegmentSpeed(
+          device.id, match.routeId, match.direction,
+          match.nearestStopSequence, new Date(telemetry.timestamp).getTime(),
+        )
+
+        // Update device with route match info
+        await db.update(devices).set({
+          assignedRouteId: match.routeId,
+          currentDirection: match.direction,
+          currentStopSequence: match.nearestStopSequence,
+          routeMatchConfidence: match.confidence,
+          lastMatchedAt: new Date(),
+        }).where(eq(devices.id, device.id))
+
+        logger.debug({
+          imei, routeId: match.routeId, route: match.routeNumber,
+          direction: match.direction, confidence: match.confidence,
+        }, 'Route matched')
+      }
+    } catch (err) {
+      logger.warn({ err, imei }, 'Route matching failed')
     }
   }
 }

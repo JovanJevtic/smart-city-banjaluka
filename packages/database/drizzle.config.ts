@@ -10,6 +10,7 @@ export default defineConfig({
     './src/schema/users.ts',
     './src/schema/geofences.ts',
     './src/schema/analytics.ts',
+    './src/schema/schedule.ts',
   ],
   out: './drizzle',
   dialect: 'postgresql',

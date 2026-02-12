@@ -3,11 +3,14 @@ import { Redis } from 'ioredis'
 import { pool } from '@smart-city/database'
 import { QUEUES } from '@smart-city/shared'
 import { createLogger } from './logger.js'
-import { processTelemetryJob, setAlertQueue, TelemetryJobData } from './processors/telemetry.processor.js'
+import { processTelemetryJob, setAlertQueue, enableRouteMatching, TelemetryJobData } from './processors/telemetry.processor.js'
 import { processAlertJob, setRedisPublisher, AlertJobData } from './processors/alert.processor.js'
 import { processAnalyticsJob, AnalyticsJobData } from './processors/analytics.processor.js'
 import { processCleanupJob, setCleanupAlertQueue, CleanupJobData } from './processors/cleanup.processor.js'
 import { loadConfig } from './config.js'
+import { loadRouteCache } from './services/route-matcher.js'
+import { setEtaRedis } from './services/eta-predictor.js'
+import { setAdherenceRedis } from './services/adherence-checker.js'
 
 const logger = createLogger('main')
 
@@ -41,6 +44,19 @@ async function main(): Promise<void> {
 
   // Set up Redis publisher for alert processor
   setRedisPublisher(redisPub)
+
+  // Set up Redis for ETA and adherence services
+  setEtaRedis(redisPub)
+  setAdherenceRedis(redisPub)
+
+  // Load route cache and enable route matching
+  try {
+    await loadRouteCache()
+    enableRouteMatching()
+    logger.info('Route matching enabled')
+  } catch (err) {
+    logger.warn({ err }, 'Route matching not available (no route data yet)')
+  }
 
   // Create queues
   const alertQueue = new Queue<AlertJobData>(QUEUES.ALERTS, {
