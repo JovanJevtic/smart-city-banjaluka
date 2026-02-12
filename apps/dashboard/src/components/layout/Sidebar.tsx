@@ -24,6 +24,24 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: 'Reports', href: '/reports' },
+  {
+    label: 'Dispatch',
+    href: '/dispatch',
+    children: [
+      { label: 'Control Center', href: '/dispatch' },
+      { label: 'Assignments', href: '/dispatch/assignments' },
+      { label: 'Schedules', href: '/dispatch/schedules' },
+    ],
+  },
+  {
+    label: 'Admin',
+    href: '/admin',
+    children: [
+      { label: 'Routes', href: '/admin/routes' },
+      { label: 'Stops', href: '/admin/stops' },
+      { label: 'Users', href: '/admin/users' },
+    ],
+  },
 ]
 
 export default function Sidebar() {
