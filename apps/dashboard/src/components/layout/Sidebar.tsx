@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Alerts', href: '/analytics/alerts' },
     ],
   },
+  { label: 'Reports', href: '/reports' },
 ]
 
 export default function Sidebar() {
