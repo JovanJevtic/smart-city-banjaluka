@@ -9,6 +9,7 @@ import { rootLogger } from './logger.js'
 import authPlugin from './plugins/auth.js'
 import corsPlugin from './plugins/cors.js'
 import rateLimitPlugin from './plugins/rate-limit.js'
+import metricsPlugin from './plugins/metrics.js'
 
 // Routes
 import healthRoutes from './routes/health.js'
@@ -58,6 +59,7 @@ export async function buildServer(config: Config) {
   await fastify.register(rateLimitPlugin)
   await fastify.register(authPlugin)
   await fastify.register(fastifyWebsocket)
+  await fastify.register(metricsPlugin)
 
   // Global error handler
   fastify.setErrorHandler((error: unknown, _request, reply) => {

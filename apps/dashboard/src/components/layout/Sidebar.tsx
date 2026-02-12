@@ -40,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Routes', href: '/admin/routes' },
       { label: 'Stops', href: '/admin/stops' },
       { label: 'Users', href: '/admin/users' },
+      { label: 'Health', href: '/admin/health' },
     ],
   },
 ]
