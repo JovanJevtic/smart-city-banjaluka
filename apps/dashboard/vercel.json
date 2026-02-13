@@ -1,0 +1,4 @@
+{
+  "installCommand": "pnpm install",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@smart-city/dashboard"
+}
